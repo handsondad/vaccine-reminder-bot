@@ -12,7 +12,7 @@ const execAsync = promisify(exec);
 // 配置 - 从环境变量读取敏感信息
 const BASE_TOKEN = process.env.VACCINE_BASE_TOKEN;
 const TABLE_ID = process.env.VACCINE_TABLE_ID;
-const USER_ID = process.env.VACCINE_USER_ID || 'ou_bd04f76cf94e31b0efd3be52b49caaac';
+const USER_ID = process.env.VACCINE_USER_ID;
 
 // 验证必要配置
 if (!BASE_TOKEN || !TABLE_ID) {
@@ -20,7 +20,16 @@ if (!BASE_TOKEN || !TABLE_ID) {
   console.error('请确保在 .env 文件中设置了:');
   console.error('  VACCINE_BASE_TOKEN=你的多维表格Token');
   console.error('  VACCINE_TABLE_ID=你的表格ID');
+  console.error('  VACCINE_USER_ID=你的飞书用户ID');
   console.error('');
+  console.error('参考 .env.example 文件创建 .env 文件');
+  process.exit(1);
+}
+
+// 验证 USER_ID
+if (!USER_ID) {
+  console.error('❌ 错误: 缺少 VACCINE_USER_ID 配置！');
+  console.error('请确保在 .env 文件中设置了 VACCINE_USER_ID');
   console.error('参考 .env.example 文件创建 .env 文件');
   process.exit(1);
 }
@@ -93,32 +102,48 @@ async function fetchVaccineRecords() {
   }
 }
 
-function getToday() {
+function getDateRange() {
+  const dates = [];
   const today = new Date();
-  return today.toISOString().split('T')[0];
+  
+  for (let i = 0; i <= 7; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    dates.push(date.toISOString().split('T')[0]);
+  }
+  
+  return dates;
 }
 
-function getTomorrow() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toISOString().split('T')[0];
+function getDaysUntil(dateStr) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const targetDate = new Date(dateStr);
+  targetDate.setHours(0, 0, 0, 0);
+  const diffTime = targetDate - today;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
 }
 
 function checkVaccineDates(records) {
-  const today = getToday();
-  const tomorrow = getTomorrow();
+  const dateRange = getDateRange();
   const reminders = [];
 
-  console.log('检查日期:', today, '(今天),', tomorrow, '(明天)\n');
+  console.log('检查日期范围: 从', dateRange[0], '到', dateRange[7], '（提前一周提醒）\n');
 
   records.forEach(vaccine => {
-    // 标准化日期格式
-    const vaccineDate = vaccine.date.split(' ')[0]; // 只取日期部分，去除时间
+    const vaccineDate = vaccine.date.split(' ')[0];
     
-    if (vaccineDate === today) {
-      reminders.push(`今天（${vaccineDate}）要带宝宝去打${vaccine.name}哦！`);
-    } else if (vaccineDate === tomorrow) {
-      reminders.push(`明天（${vaccineDate}）要带宝宝去打${vaccine.name}，别忘了！`);
+    if (dateRange.includes(vaccineDate)) {
+      const daysUntil = getDaysUntil(vaccineDate);
+      
+      if (daysUntil === 0) {
+        reminders.push(`今天（${vaccineDate}）要带宝宝去打${vaccine.name}哦！`);
+      } else if (daysUntil === 1) {
+        reminders.push(`明天（${vaccineDate}）要带宝宝去打${vaccine.name}，别忘了！`);
+      } else if (daysUntil > 1 && daysUntil <= 7) {
+        reminders.push(`${daysUntil}天后（${vaccineDate}）要带宝宝去打${vaccine.name}，记得提前安排！`);
+      }
     }
   });
 
