@@ -1,0 +1,56 @@
+name: Vaccine Reminder Bot
+
+on:
+  schedule:
+    # 每天早上 8 点（北京时间）运行
+    # Cron: 分 时 日 月 周
+    # 8点 = 00:00 UTC = 08:00+8
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 支持手动触发
+    inputs:
+      mode:
+        description: '运行模式'
+        required: true
+        default: 'remind'
+        type: choice
+        options:
+          - remind
+          - create-calendar
+          - test
+
+jobs:
+  vaccine-reminder:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: 安装依赖
+        run: npm ci
+      
+      - name: 安装 lark-cli
+        run: npx @larksuite/cli@latest install
+      
+      - name: 飞书授权
+        run: lark-cli auth login --device-code ${{ secrets.LARK_DEVICE_CODE }} --no-wait
+      
+      - name: 运行提醒检查
+        if: github.event.inputs.mode == 'remind' || github.event.inputs.mode == ''
+        run: node check-and-remind.js
+      
+      - name: 创建疫苗日程
+        if: github.event.inputs.mode == 'create-calendar'
+        run: node check-and-remind.js --create-calendar
+      
+      - name: 测试模式
+        if: github.event.inputs.mode == 'test'
+        run: |
+          echo "测试模式运行"
+          node check-and-remind.js
