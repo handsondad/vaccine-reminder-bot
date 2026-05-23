@@ -38,6 +38,19 @@ jobs:
       - name: 安装 lark-cli
         run: npx @larksuite/cli@latest install
       
+      - name: 配置环境变量
+        env:
+          VACCINE_BASE_TOKEN: ${{ secrets.VACCINE_BASE_TOKEN }}
+          VACCINE_TABLE_ID: ${{ secrets.VACCINE_TABLE_ID }}
+          VACCINE_USER_ID: ${{ secrets.VACCINE_USER_ID }}
+        run: |
+          # 创建 .env 文件供 dotenv 使用
+          cat > .env << EOF
+          VACCINE_BASE_TOKEN=${{ secrets.VACCINE_BASE_TOKEN }}
+          VACCINE_TABLE_ID=${{ secrets.VACCINE_TABLE_ID }}
+          VACCINE_USER_ID=${{ secrets.VACCINE_USER_ID }}
+          EOF
+      
       - name: 飞书授权
         run: lark-cli auth login --device-code ${{ secrets.LARK_DEVICE_CODE }} --no-wait
       

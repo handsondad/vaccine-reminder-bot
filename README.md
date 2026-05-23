@@ -9,6 +9,7 @@
 - ✅ **即时通知**：通过飞书消息即时推送提醒
 - ✅ **手动触发**：支持 GitHub Actions 手动触发测试
 - ✅ **跨平台**：可在本地或 GitHub 云端运行
+- ✅ **多维表格**：使用飞书多维表格存储和管理疫苗记录
 
 ## 项目结构
 
@@ -44,19 +45,28 @@ npx @larksuite/cli@latest install
 lark-cli auth login
 ```
 
-### 4. 配置疫苗时间表
+### 4. 配置环境变量
 
-编辑 `check-and-remind.js` 中的 `VACCINE_SCHEDULE` 数组：
+**重要安全提示**：请勿将包含敏感信息的 .env 文件提交到 GitHub！
 
-```javascript
-const VACCINE_SCHEDULE = [
-  { date: '2026-06-01', name: '乙肝第二针' },
-  { date: '2026-07-15', name: '百白破第一针' },
-  // 添加更多疫苗...
-];
+复制示例配置文件：
+```bash
+cp .env.example .env
 ```
 
-### 5. 运行方式
+编辑 `.env` 文件，填入您的配置：
+```bash
+VACCINE_BASE_TOKEN=您的多维表格Token
+VACCINE_TABLE_ID=您的表格ID
+```
+
+### 5. 在飞书多维表格中添加疫苗记录
+
+打开您的飞书多维表格，添加疫苗接种记录：
+- 文本字段：疫苗名称（如：乙肝第二针）
+- 日期字段：接种日期（如：2026-06-01）
+
+### 6. 运行方式
 
 **单次检查提醒：**
 ```bash
@@ -73,6 +83,69 @@ node check-and-remind.js --create-calendar
 npm start
 ```
 
+## 交互式机器人管理
+
+### 启动交互式机器人
+
+```bash
+node vaccine-bot.js
+```
+
+机器人会监听您的飞书消息，支持以下命令：
+
+### 可用命令
+
+#### 1. 添加疫苗记录
+
+发送消息格式：
+```
+添加疫苗: [疫苗名称] 日期: [YYYY-MM-DD]
+```
+
+示例：
+```
+添加疫苗: 乙肝第三针 日期: 2026-07-01
+```
+
+#### 2. 查询疫苗记录
+
+发送消息：
+```
+查询疫苗
+```
+
+或：
+```
+查询所有疫苗
+```
+
+#### 3. 帮助信息
+
+发送消息：
+```
+帮助
+```
+
+或：
+```
+--help
+```
+
+### 飞书多维表格
+
+机器人会自动将疫苗记录存储在飞书多维表格中：
+
+- **Base Token**: `MSMIbrG00adIT5spm4fccwbEnng`
+- **表格链接**: https://my.feishu.cn/base/MSMIbrG00adIT5spm4fccwbEnng
+
+您可以在飞书中打开这个表格，手动查看、编辑和管理疫苗记录。
+
+### 配置说明
+
+编辑 `vaccine-bot.js` 文件可以修改：
+- Base Token（`BASE_TOKEN`）
+- 表格 ID（`TABLE_ID`）
+
 ## GitHub 部署（推荐）
 
 ### 1. 创建 GitHub 仓库
@@ -87,22 +160,30 @@ git push -u origin main
 
 ### 2. 配置 GitHub Secrets
 
+**重要**：敏感信息必须存储在 GitHub Secrets 中，绝不能硬编码到代码中！
+
 在 GitHub 仓库中配置以下 secrets：
 
 1. 进入 **Settings** → **Secrets and variables** → **Actions**
 2. 点击 **New repository secret**
-3. 添加：
-   - **LARK_DEVICE_CODE**: 飞书设备授权码
+3. 添加以下 secrets：
+
+| Secret 名称 | 说明 | 获取方式 |
+|------------|------|----------|
+| `VACCINE_BASE_TOKEN` | 飞书多维表格 Token | 从多维表格 URL 中获取 |
+| `VACCINE_TABLE_ID` | 飞书多维表格 ID | 从多维表格 URL 中获取 |
+| `VACCINE_USER_ID` | 飞书用户 ID | 在飞书中查看个人资料 |
+| `LARK_DEVICE_CODE` | 飞书设备授权码 | 使用命令获取（见下文） |
 
 ### 3. 获取 LARK_DEVICE_CODE
 
-在本地终端运行：
+在本地终端运行以下命令获取设备授权码：
 
 ```bash
-npx lark-cli auth login --scope "calendar:calendar.event:create,im:message:send_as_user" --no-wait --json
+npx lark-cli auth login --scope "calendar:calendar.event:create,im:message:send_as_user,bitable:app:readonly" --no-wait --json
 ```
 
-会返回设备码，使用该设备码进行授权。
+会返回设备码，复制返回的 `device_code` 值，添加到 GitHub Secrets。
 
 ### 4. 启用 GitHub Actions
 
@@ -127,13 +208,31 @@ Push 代码后，GitHub Actions 会自动运行。
 1. GitHub Actions 自动触发
 2. 检出代码
 3. 安装依赖和 lark-cli
-4. 进行飞书授权
-5. 运行提醒检查脚本
-6. 发送飞书消息（如有提醒）
+4. **从 Secrets 读取环境变量**（安全）
+5. 进行飞书授权
+6. 运行提醒检查脚本
+7. 发送飞书消息（如有提醒）
 
 ### 手动触发
 
 可通过 GitHub Actions 界面手动运行，支持三种模式。
+
+## 安全说明
+
+### 为什么使用 GitHub Secrets？
+
+| 方案 | 安全性 | 推荐度 |
+|------|--------|--------|
+| 硬编码到代码 | ❌ 危险 | 不推荐 |
+| .env 文件（本地） | ✅ 安全 | 本地使用 |
+| GitHub Secrets | ✅✅ 最安全 | GitHub Actions 使用 |
+
+### GitHub Secrets 特性
+
+- ✅ **加密存储**：所有 secrets 都经过加密
+- ✅ **不暴露在日志**：Secrets 不会出现在 GitHub Actions 日志中
+- ✅ **不暴露在代码**：Secrets 不会出现在代码仓库中
+- ✅ **版本控制分离**：密钥与代码分离管理
 
 ## 自定义配置
 
